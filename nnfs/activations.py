@@ -6,7 +6,7 @@ class LinearActivation():
 
         pass
 
-    def forward(self, inputs):
+    def forward(self, inputs, training):
 
         self.inputs = inputs
         self.output = inputs
@@ -19,32 +19,14 @@ class LinearActivation():
 
         return outputs
     
-class ReLU_Activation():
 
-    def __init__(self):
-
-        pass
-
-    def forward(self, inputs):
-        self.output = np.maximum(0, inputs)
-        #Save the inputs for backpropagation
-        self.inputs = inputs
-
-    def backward(self, dvalues):
-        self.dinputs = dvalues.copy()
-        self.dinputs[self.inputs <= 0] = 0
-
-    def predict(self, outputs):
-
-        return outputs
-    
 class Softmax_Activation():
 
     def __init__(self):
 
         pass
 
-    def forward(self, inputs):
+    def forward(self, inputs, training):
 
         self.inputs = inputs
 
@@ -64,13 +46,33 @@ class Softmax_Activation():
         return np.argmax(outputs, axis=-1)
     
 
+class ReLU_Activation():
+
+    def __init__(self):
+
+        pass
+
+    def forward(self, inputs, training):
+        self.output = np.maximum(0, inputs)
+        #Save the inputs for backpropagation
+        self.inputs = inputs
+
+    def backward(self, dvalues):
+        self.dinputs = dvalues.copy()
+        self.dinputs[self.inputs <= 0] = 0
+
+    def predict(self, outputs):
+
+        return outputs
+    
+
 class Sigmoid():
 
     def __init__(self):
 
         pass
 
-    def forward(self, inputs):
+    def forward(self, inputs, training):
 
         self.inputs = inputs
 

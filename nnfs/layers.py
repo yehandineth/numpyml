@@ -6,7 +6,7 @@ class Input():
 
         pass
 
-    def forward(self, inputs):
+    def forward(self, inputs, training):
         
         self.inputs = inputs
         self.output = inputs
@@ -23,7 +23,7 @@ class Dense_Layer():
         self.lambdal2b = lambdal2b
 
 
-    def forward(self, inputs : np.ndarray):
+    def forward(self, inputs : np.ndarray, training):
         self.output = np.dot(inputs, self.weights) + self.biases
         # Saving the inputs for backpropagation using
         self.inputs = inputs
@@ -51,3 +51,28 @@ class Dense_Layer():
 
         if self.lambdal2b > 0:
             self.dbiases += 2 * self.lambdal2b * self.biases
+
+
+class Dropout():
+
+    def __init__(self, rate):
+
+        self.forward_rate = 1 - rate
+
+    def forward(self, inputs, training=True):
+
+        self.inputs = inputs
+        
+        if not training:
+
+            self.output = inputs.copy()
+
+            return
+
+        self.binary_mask = np.random.binomial(1, self.forward_rate, size=inputs.shape)/self.forward_rate
+
+        self.output = inputs * self.binary_mask
+    
+    def backward(self, dvalues):
+
+        self.dinputs = dvalues * self.binary_mask
