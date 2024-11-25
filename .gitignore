@@ -1,2 +1,4 @@
 
 nnfs/Neural Networks from Scratch in Python.pdf
+/nnfs/datasets
+*.pyc
