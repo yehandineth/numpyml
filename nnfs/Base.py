@@ -1,7 +1,6 @@
 import numpy as np
 from layers import Input
-from activations import Softmax_Activation
-from losses import CategoricalCrossentropy
+from tqdm import tqdm
 
 class Accuracy():
 
@@ -121,11 +120,11 @@ class Model():
         self.accuracy = accuracy
         self.finalize()
 
-    def fit(self, X, y,*,validation_data=None, epochs=10000, print_frequency=100, batch_size=None):
+    def fit(self, X, y,*,validation_data=None, epochs=1, batch_size=None):
         
         X_val,y_val = None,None
-        if validation_data is not None:
-            X_val,y_val =  validation_data
+        val_batch_size = batch_size
+        
         self.accuracy.fit(y)
         self.current_history = {
             'losses' : [],
@@ -135,47 +134,94 @@ class Model():
         if validation_data is not None:
             self.current_history['val_accuracies'] = []
             self.current_history['val_losses'] = []
+            X_val,y_val =  validation_data
+
+        if batch_size is None:
+            batch_size = X.shape[0]
+            if validation_data is not None:
+                val_batch_size = X_val.shape[0]
         
+        num_val_steps = int(np.ceil(X_val.shape[0]/val_batch_size)) 
+        num_steps = int(np.ceil(X.shape[0]/batch_size))
+
         for epoch in range(1,epochs+1):
             
-            output = self.forward(X, training=True)
+            print('--------------------------------------------------------------------------------------------------------------------------')
+            print('Epoch :', epoch, 'Learning_rate :', self.optimizer.current_rate)
+            self.accuracy.reset_accuracy()
+            self.loss.reset_loss()
 
-            data_loss, reg_loss = self.loss.calculate(output, y, regularize=True)
-
-            loss = data_loss + reg_loss
-
-            predictions = self.predictor.predict(output)
+            bar = tqdm(range(num_steps))
+            for step in bar:
             
-            accuracy = self.accuracy.calculate(predictions, y)
+                start = step*batch_size
+                num_samples = batch_size if step!=num_steps-1 else (X.shape[0] - step*batch_size)
 
-            self.backward(output, y)
+                batch_X = X[start:start + num_samples]
+                batch_y = y[start:start + num_samples]
 
-            self.optimize()
+
+                output = self.forward(batch_X, training=True)
+
+                self.loss.calculate(output, batch_y, regularize=True)
+
+                data_loss, reg_loss = self.loss.get_accumulated_loss(regularize=True)
+
+                batch_loss = data_loss + reg_loss
+
+                predictions = self.predictor.predict(output)
+
+                self.accuracy.calculate(predictions, batch_y)
+            
+                batch_accuracy = self.accuracy.get_accumulated_accuracy()
+
+                self.backward(output, batch_y)
+
+                self.optimize()
+                bar.set_description(f'Accuracy : {batch_accuracy} Loss : {batch_loss}' )
+
+            loss = batch_loss
+            accuracy = batch_accuracy
 
             self.current_history['losses'].append(loss)
             self.current_history['accuracies'].append(accuracy)
             self.current_history['learning_rates'].append(self.optimizer.current_rate)
 
             if validation_data is not None:
-                val_output = self.forward(X_val, training=False)
 
-                val_loss = self.loss.calculate(val_output, y_val)
+                val_bar = tqdm(range(num_val_steps))
+                self.accuracy.reset_accuracy()
+                self.loss.reset_loss()
 
-                val_predictions = self.predictor.predict(val_output)
-            
-                val_accuracy = self.accuracy.calculate(val_predictions, y_val)
+                for step in val_bar:
 
-                self.current_history['val_accuracies'].append(val_accuracy)
-                self.current_history['val_losses'].append(val_loss)
+                    start = step*val_batch_size
+                    num_samples = batch_size if step!=num_val_steps-1 else (X_val.shape[0] - step*val_batch_size)
 
-    
-            if epoch%print_frequency == 0 or epoch == epochs:
-                print('--------------------------------------------------------------------------------------------------------------------------')
-                print('Epoch :', epoch, 'Learning_rate :', self.optimizer.current_rate)
-                print('Training Accuracy :', accuracy,  'Training Loss', loss, 'Training Data Loss :',
-                    data_loss, 'Regularization Loss:', reg_loss)
-                if validation_data is not None:
-                    print('Validation Accuracy :', val_accuracy,  'Validation Loss :', val_loss)
+                    batch_X = X_val[start:start + num_samples]
+                    batch_y = y_val[start:start + num_samples]
+
+                    val_output = self.forward(batch_X, training=False)
+
+                    self.loss.calculate(val_output, batch_y)
+
+                    val_loss = self.loss.get_accumulated_loss()
+
+                    val_predictions = self.predictor.predict(val_output)
+
+                    self.accuracy.calculate(val_predictions, batch_y)
+                
+                    val_accuracy = self.accuracy.get_accumulated_accuracy()
+
+                    val_bar.set_description(f'Validation Accuracy : {val_accuracy} Validation Loss : {val_loss}' )
+
+            self.current_history['val_accuracies'].append(val_accuracy)
+            self.current_history['val_losses'].append(val_loss)
+
+            print('Training Accuracy :', accuracy,  'Training Loss', loss, 'Training Data Loss :',
+                data_loss, 'Regularization Loss:', reg_loss)
+            if validation_data is not None:
+                print('Validation Accuracy :', val_accuracy,  'Validation Loss :', val_loss)
 
                 
         
@@ -201,6 +247,8 @@ class Model():
             else:
                 layer.prev = self.layers[i-1]
                 layer.next = self.layers[i+1]
+        from losses import CategoricalCrossentropy
+        from activations import Softmax_Activation
 
         if isinstance(self.layers[-1], Softmax_Activation) and isinstance(self.loss, CategoricalCrossentropy):
             

@@ -63,7 +63,7 @@ class CategoricalCrossentropy(Loss):
         n_samples = len(truth)
 
         clipped_preds = np.clip(preds, 1e-7, 1-1e-7)
-        
+     
         #if sparsely encoded
         if len(truth.shape) == 1:
             confidences = clipped_preds[range(n_samples), truth]
@@ -72,10 +72,6 @@ class CategoricalCrossentropy(Loss):
         #if one_hot encoded
         elif len(truth.shape) == 2:
             confidences = np.sum(clipped_preds * truth, axis=1)
-
-        #save the predictions and truths for backpropagation
-        self.preds = preds
-        self.truth = truth
 
         return -np.log(confidences)
     
