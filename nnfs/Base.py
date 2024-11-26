@@ -7,14 +7,32 @@ class Accuracy():
 
     def calculate(self, preds, truth):
 
-        return np.mean(self.compare(preds, truth))
+        batch_accuracy = self.compare(preds, truth)
+
+        self.accumulated_accuracy += np.sum(batch_accuracy)
+        self.samples_passed += len(batch_accuracy)
+
+        return np.mean(batch_accuracy)
     
+    def get_accumulated_accuracy(self):
+
+        return self.accumulated_accuracy/self.samples_passed
+    
+    def reset_accuracy(self):
+
+        self.accumulated_accuracy = 0
+        self.samples_passed = 0
 
 class Loss():
 
     def calculate(self, preds, y, *, regularize=False):
 
-        data_loss = np.mean(self.forward(preds, y))
+        batch_loss =self.forward(preds, y)
+        
+        data_loss = np.mean(batch_loss)
+
+        self.accumulated_loss += np.sum(batch_loss)
+        self.samples_passed += len(batch_loss)
 
         if not regularize:
 
@@ -45,6 +63,21 @@ class Loss():
     def get_trainable_layers(self, trainable_layers):
 
         self.trainable_layers = trainable_layers
+
+    def get_accumulated_loss(self, regularize=False):
+
+        data_loss = self.accumulated_loss / self.samples_passed
+
+        if not regularize:
+
+            return data_loss
+
+        return data_loss, self.regularization_loss()
+
+    def reset_loss(self):
+
+        self.accumulated_loss = 0
+        self.samples_passed = 0
 
 
 class CategoricalCrossentropyWithSoftmax():
@@ -88,7 +121,7 @@ class Model():
         self.accuracy = accuracy
         self.finalize()
 
-    def fit(self, X, y,*,validation_data=None, epochs=10000, print_frequency=100):
+    def fit(self, X, y,*,validation_data=None, epochs=10000, print_frequency=100, batch_size=None):
         
         X_val,y_val = None,None
         if validation_data is not None:
