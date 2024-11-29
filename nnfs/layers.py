@@ -17,6 +17,9 @@ class Dense_Layer():
 
         self.weights = weight_multiplier * np.random.randn(n_inputs, n_neurons)#Already transposed
         self.biases = np.zeros(shape=(1, n_neurons))
+        self.weight_multiplier = weight_multiplier
+        self.n_inputs = n_inputs
+        self.n_neurons = n_neurons
         self.lambdal1w = lambdal1w
         self.lambdal1b = lambdal1b
         self.lambdal2w = lambdal2w
@@ -52,6 +55,14 @@ class Dense_Layer():
         if self.lambdal2b > 0:
             self.dbiases += 2 * self.lambdal2b * self.biases
 
+    def get_weights(self):
+
+        return (self.weights.copy(), self.biases.copy())
+    
+    def set_weights(self,weights,biases):
+
+        self.weights = weights.copy()
+        self.biases = biases.copy()
 
 class Dropout():
 

@@ -102,6 +102,16 @@ class CategoricalCrossentropyWithSoftmax():
 
 class Model():
 
+    @staticmethod
+    def load(path : str):
+
+        import pickle
+
+        with open(path,'rb') as file:
+            model = pickle.load(file)
+        
+        return model
+
     def __init__(self):
 
         self.layers = []
@@ -141,7 +151,6 @@ class Model():
             if validation_data is not None:
                 val_batch_size = X_val.shape[0]
         
-        num_val_steps = int(np.ceil(X_val.shape[0]/val_batch_size)) 
         num_steps = int(np.ceil(X.shape[0]/batch_size))
 
         for epoch in range(1,epochs+1):
@@ -189,31 +198,7 @@ class Model():
 
             if validation_data is not None:
 
-                val_bar = tqdm(range(num_val_steps))
-                self.accuracy.reset_accuracy()
-                self.loss.reset_loss()
-
-                for step in val_bar:
-
-                    start = step*val_batch_size
-                    num_samples = batch_size if step!=num_val_steps-1 else (X_val.shape[0] - step*val_batch_size)
-
-                    batch_X = X_val[start:start + num_samples]
-                    batch_y = y_val[start:start + num_samples]
-
-                    val_output = self.forward(batch_X, training=False)
-
-                    self.loss.calculate(val_output, batch_y)
-
-                    val_loss = self.loss.get_accumulated_loss()
-
-                    val_predictions = self.predictor.predict(val_output)
-
-                    self.accuracy.calculate(val_predictions, batch_y)
-                
-                    val_accuracy = self.accuracy.get_accumulated_accuracy()
-
-                    val_bar.set_description(f'Validation Accuracy : {val_accuracy} Validation Loss : {val_loss}' )
+                val_loss,val_accuracy = self.evaluate(X_val,y_val,batch_size=val_batch_size)
 
             self.current_history['val_accuracies'].append(val_accuracy)
             self.current_history['val_losses'].append(val_loss)
@@ -223,9 +208,44 @@ class Model():
             if validation_data is not None:
                 print('Validation Accuracy :', val_accuracy,  'Validation Loss :', val_loss)
 
-                
         
         return self.current_history
+    
+    def evaluate(self, X_val, y_val,*, batch_size=None):
+
+        if batch_size is not None:
+            num_val_steps = int(np.ceil(X_val.shape[0]/batch_size)) 
+        else:
+            num_val_steps = 1
+            batch_size = X_val.shape[0]
+        val_bar = tqdm(range(num_val_steps))
+        self.accuracy.reset_accuracy()
+        self.loss.reset_loss()
+
+        for step in val_bar:
+
+            start = step*batch_size
+            num_samples = batch_size if step!=num_val_steps-1 else (X_val.shape[0] - step*batch_size)
+
+            batch_X = X_val[start:start + num_samples]
+            batch_y = y_val[start:start + num_samples]
+
+            val_output = self.forward(batch_X, training=False)
+
+            self.loss.calculate(val_output, batch_y)
+
+            val_loss = self.loss.get_accumulated_loss()
+
+            val_predictions = self.predictor.predict(val_output)
+
+            self.accuracy.calculate(val_predictions, batch_y)
+        
+            val_accuracy = self.accuracy.get_accumulated_accuracy()
+
+            val_bar.set_description(f'Validation Accuracy : {val_accuracy} Validation Loss : {val_loss}' )
+        
+        return val_loss,val_accuracy
+
 
     def finalize(self):
 
@@ -283,4 +303,77 @@ class Model():
         for layer in self.trainable_layers:
             self.optimizer.update_params(layer)
         self.optimizer.post_update()
+
+    def predict(self, X, *,batch_size=None):
+
+        if batch_size is not None:
+            num_steps = int(np.ceil(X.shape[0]/batch_size)) 
+        else:
+            num_steps = 1
+            batch_size = X.shape[0]
+        bar = tqdm(range(num_steps))
+   
+        output = []
+
+        for step in bar:
+
+            start = step*batch_size
+            num_samples = batch_size if step!=num_steps-1 else (X.shape[0] - step*batch_size)
+
+            batch_X = X[start:start + num_samples]
+
+            batch_output = self.forward(batch_X, training=False)
+
+            output.append(batch_output)
         
+        return np.vstack(output)
+    
+    def get_weights(self):
+
+        weights = []
+        for layer in self.trainable_layers:
+            weights.append(layer.get_weights())
+        
+        return weights
+    
+    def set_weights(self, weights):
+
+        for weight,layer in zip(weights,self.trainable_layers):
+
+            layer.set_weights(*weight)
+
+    def clone_model(self, reset=True):
+        
+        import copy
+        
+        model = copy.deepcopy(self)
+
+        self.accuracy.reset_accuracy()
+        self.loss.reset_loss()
+        model.input_layer.__dict__.pop( 'output' , None )
+        model.loss.__dict__.pop( 'dinputs' , None )
+        for layer in model.layers:
+            for property in [ 'inputs' , 'output' , 'dinputs' ,'dweights' , 'dbiases' ]:
+                layer.__dict__.pop( property , None )
+
+        return model
+
+    def save_weights(self, path : str = 'model.weights'):
+
+        import pickle
+
+        with open(path,'wb') as file:
+            
+            pickle.dump(self.get_weights(),file)
+        
+        print('Successfully saved weights to', path)
+
+    def save_model(self, path : str = 'model.model'):
+        
+        import pickle
+
+        with open(path,'wb') as file:
+            
+            pickle.dump(self.clone_model(),file)
+        
+        print('Successfully saved model to', path)
