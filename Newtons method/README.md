@@ -1,0 +1,1 @@
+# Explanation of newton's method for optimizing Loss
